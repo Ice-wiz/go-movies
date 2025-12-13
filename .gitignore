@@ -1,0 +1,104 @@
+# OS-specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE and Editor files
+.idea/
+.vscode/
+*.iml
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+
+# Cursor-specific files (should NOT be pushed to GitHub)
+.cursor/
+.cursorrules
+.cursorignore
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+tmp/
+*.log
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+*.env
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+build-errors.log
+
+# Dependencies (if using vendor)
+vendor/
+
+# Build directories
+dist/
+build/
+bin/
+
+# Node modules (if Client uses Node.js)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Client build outputs
+Client/dist/
+Client/build/
+Client/.next/
+Client/out/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Exclude MagicStream folder (if it somehow gets added)
+../MagicStream/
+MagicStream/
+
+# Compiled binaries
+Server/MagicStreamMoviesServer/tmp/
+Server/tmp/
+main
+
+# Coverage reports
+*.coverprofile
+coverage.out
+coverage.html
+
+# Air (live reload tool for Go)
+tmp/
+
+# Test files (optional - uncomment if you don't want test files)
+# *_test.go
+
