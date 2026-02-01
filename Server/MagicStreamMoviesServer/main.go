@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	controller "github.com/ice-wiz/MagicStreamMovies/Server/MagicStreamMoviesServer/controllers"
 	"github.com/ice-wiz/MagicStreamMovies/Server/MagicStreamMoviesServer/database"
+	"github.com/ice-wiz/MagicStreamMovies/Server/MagicStreamMoviesServer/middleware"
 )
 
 func main() {
@@ -41,7 +42,36 @@ func main() {
 		ctx.String(200, "Welcome to MagicStream !")
 	})
 
-	router.GET("/movies", controller.GetMovies())
+	// Public routes (no authentication required)
+	router.POST("/register", controller.RegisterUser(client))
+	router.POST("/login", controller.LoginUser(client))
+	router.POST("/refresh", controller.RefreshToken(client))
+	router.POST("/logout", controller.Logout(client)) // Public so logout works when access token expired (uses refresh cookie)
+	router.GET("/movies", controller.GetMovies(client))
+
+	// Protected routes (require authentication)
+	protected := router.Group("/")
+	protected.Use(middleware.AuthMiddleware())
+	{
+		protected.GET("/profile", controller.GetProfile(client))
+		protected.GET("/movie/:imdb_id", controller.GetMovie(client))
+		protected.POST("/addmovie", controller.AddMovie(client))
+		protected.GET("/recommendedmovies", controller.GetRecommendedMovies(client))
+	}
+
+	fmt.Println("🚀 Server starting on http://localhost:8080")
+	fmt.Println("📚 API Endpoints:")
+	fmt.Println("  Public:")
+	fmt.Println("    POST   /register  - User registration")
+	fmt.Println("    POST   /login     - User login")
+	fmt.Println("    POST   /refresh   - Refresh access token")
+	fmt.Println("    POST   /logout    - Logout (uses refresh cookie if access token expired)")
+	fmt.Println("    GET    /movies   - Get all movies")
+	fmt.Println("  Protected (require authentication):")
+	fmt.Println("    GET    /profile            - Get user profile")
+	fmt.Println("    GET    /movie/:imdb_id     - Get single movie")
+	fmt.Println("    POST   /addmovie           - Add movie")
+	fmt.Println("    GET    /recommendedmovies  - Get recommended movies")
 
 	if err := router.Run("localhost:8080"); err != nil {
 		fmt.Println("failed to start server", err)
