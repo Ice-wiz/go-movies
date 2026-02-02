@@ -96,7 +96,32 @@ func AddMovie(client *mongo.Client) gin.HandlerFunc {
 	}
 }
 
-// getUsersFavouriteGenres returns genre names for a user (from users collection)
+// GetGenres returns all genres from the genres collection (public).
+// Used by the registration form so users can select favourite genres.
+func GetGenres(client *mongo.Client) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
+		genreCollection := database.OpenCollection("genres", client)
+		cursor, err := genreCollection.Find(ctx, bson.M{})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch genres"})
+			return
+		}
+		defer cursor.Close(ctx)
+
+		var genres []models.Genre
+		if err := cursor.All(ctx, &genres); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode genres"})
+			return
+		}
+
+		c.JSON(http.StatusOK, genres)
+	}
+}
+
+// getUsersFavouriteGenres returns the favourite genre names for a user.
 func getUsersFavouriteGenres(ctx context.Context, userId string, client *mongo.Client) ([]string, error) {
 	userCollection := database.OpenCollection("users", client)
 	var user struct {
@@ -148,5 +173,76 @@ func GetRecommendedMovies(client *mongo.Client) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, movies)
+	}
+}
+
+// AdminReviewUpdate updates a movie's admin_review and ranking (protected, ADMIN only).
+// Body: { "admin_review": "string", "ranking": { "ranking_value": int, "ranking_name": "string" } }.
+// ranking is optional; if omitted, ranking is set to Unrated (999).
+func AdminReviewUpdate(client *mongo.Client) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
+		role, err := utils.GetRoleFromContext(c)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+		if role != models.RoleAdmin {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Admin role required"})
+			return
+		}
+
+		imdbID := c.Param("imdb_id")
+		if imdbID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "imdb_id is required"})
+			return
+		}
+
+		var req struct {
+			AdminReview string          `json:"admin_review"`
+			Ranking     *models.Ranking `json:"ranking"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+			return
+		}
+		if req.AdminReview == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "admin_review is required"})
+			return
+		}
+
+		ranking := models.Ranking{RankingValue: 999, RankingName: "Unrated"}
+		if req.Ranking != nil {
+			ranking = *req.Ranking
+		}
+
+		movieCollection := database.OpenCollection("movies", client)
+		filter := bson.M{"imdb_id": imdbID}
+		update := bson.M{
+			"$set": bson.M{
+				"admin_review": req.AdminReview,
+				"ranking": bson.M{
+					"ranking_value": ranking.RankingValue,
+					"ranking_name":  ranking.RankingName,
+				},
+			},
+		}
+		result, err := movieCollection.UpdateOne(ctx, filter, update)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update movie"})
+			return
+		}
+		if result.MatchedCount == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Movie not found"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message":      "Review updated",
+			"admin_review": req.AdminReview,
+			"ranking":      ranking,
+		})
 	}
 }

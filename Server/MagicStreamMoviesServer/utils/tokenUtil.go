@@ -2,6 +2,8 @@ package utils
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -15,7 +17,6 @@ import (
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type SignedDetails struct {
@@ -163,23 +164,27 @@ func ValidateRefreshToken(tokenString string) (*SignedDetails, error) {
 // - Refresh token is hashed before storage (prevents plain-text exposure)
 // - Only refresh token stored (for revocation/rotation)
 
+// hashToken creates a SHA-256 hash of the token for secure storage
+func hashToken(token string) string {
+	hash := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(hash[:])
+}
+
 func UpdateAllTokens(userId, accessToken, refreshToken string, client *mongo.Client) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 	defer cancel()
 
-	// Hash the refresh token before storing (security best practice)
+	// Hash the refresh token using SHA-256 before storing (security best practice)
 	// This prevents plain-text token exposure if database is compromised
-	hashedRefreshToken, err := bcrypt.GenerateFromPassword([]byte(refreshToken), bcrypt.DefaultCost)
-	if err != nil {
-		return fmt.Errorf("failed to hash refresh token: %w", err)
-	}
+	// Note: We use SHA-256 instead of bcrypt because JWTs exceed bcrypt's 72-byte limit
+	hashedRefreshToken := hashToken(refreshToken)
 
 	updateAt := time.Now()
 	updateData := bson.M{
 		"$set": bson.M{
 			// Access token NOT stored - it's stateless, validated by signature only
 			// Storing it would defeat the purpose of JWT and require DB lookup on every request
-			"refresh_token_hash": string(hashedRefreshToken), // Hashed for security
+			"refresh_token_hash": hashedRefreshToken, // SHA-256 hashed for security
 			"updated_at":         updateAt,
 		},
 		// Remove old plain-text tokens if they exist (migration)
@@ -190,7 +195,7 @@ func UpdateAllTokens(userId, accessToken, refreshToken string, client *mongo.Cli
 	}
 
 	userCollection := database.OpenCollection("users", client)
-	_, err = userCollection.UpdateOne(ctx, bson.M{"user_id": userId}, updateData)
+	_, err := userCollection.UpdateOne(ctx, bson.M{"user_id": userId}, updateData)
 	if err != nil {
 		return fmt.Errorf("failed to update tokens in database: %w", err)
 	}
@@ -215,14 +220,14 @@ func ValidateRefreshTokenFromDB(userId, refreshToken string, client *mongo.Clien
 	}
 
 	// Get the hashed refresh token from database
-	hashedToken, ok := user["refresh_token_hash"].(string)
-	if !ok || hashedToken == "" {
+	storedHash, ok := user["refresh_token_hash"].(string)
+	if !ok || storedHash == "" {
 		return errors.New("refresh token not found for user")
 	}
 
-	// Compare provided token with stored hash
-	err = bcrypt.CompareHashAndPassword([]byte(hashedToken), []byte(refreshToken))
-	if err != nil {
+	// Compare provided token hash with stored hash (SHA-256)
+	providedHash := hashToken(refreshToken)
+	if providedHash != storedHash {
 		return errors.New("invalid refresh token")
 	}
 

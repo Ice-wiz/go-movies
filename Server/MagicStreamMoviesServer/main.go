@@ -48,6 +48,7 @@ func main() {
 	router.POST("/refresh", controller.RefreshToken(client))
 	router.POST("/logout", controller.Logout(client)) // Public so logout works when access token expired (uses refresh cookie)
 	router.GET("/movies", controller.GetMovies(client))
+	router.GET("/genres", controller.GetGenres(client))
 
 	// Protected routes (require authentication)
 	protected := router.Group("/")
@@ -57,6 +58,7 @@ func main() {
 		protected.GET("/movie/:imdb_id", controller.GetMovie(client))
 		protected.POST("/addmovie", controller.AddMovie(client))
 		protected.GET("/recommendedmovies", controller.GetRecommendedMovies(client))
+		protected.PATCH("/updatereview/:imdb_id", controller.AdminReviewUpdate(client))
 	}
 
 	fmt.Println("🚀 Server starting on http://localhost:8080")
@@ -66,12 +68,14 @@ func main() {
 	fmt.Println("    POST   /login     - User login")
 	fmt.Println("    POST   /refresh   - Refresh access token")
 	fmt.Println("    POST   /logout    - Logout (uses refresh cookie if access token expired)")
-	fmt.Println("    GET    /movies   - Get all movies")
+	fmt.Println("    GET    /movies    - Get all movies")
+	fmt.Println("    GET    /genres    - Get all genres")
 	fmt.Println("  Protected (require authentication):")
-	fmt.Println("    GET    /profile            - Get user profile")
-	fmt.Println("    GET    /movie/:imdb_id     - Get single movie")
-	fmt.Println("    POST   /addmovie           - Add movie")
-	fmt.Println("    GET    /recommendedmovies  - Get recommended movies")
+	fmt.Println("    GET    /profile                  - Get user profile")
+	fmt.Println("    GET    /movie/:imdb_id           - Get single movie")
+	fmt.Println("    POST   /addmovie                 - Add movie")
+	fmt.Println("    GET    /recommendedmovies        - Get recommended movies")
+	fmt.Println("    PATCH  /updatereview/:imdb_id    - Update movie review (admin only)")
 
 	if err := router.Run("localhost:8080"); err != nil {
 		fmt.Println("failed to start server", err)

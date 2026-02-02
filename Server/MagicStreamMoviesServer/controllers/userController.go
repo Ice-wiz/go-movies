@@ -41,7 +41,10 @@ func RegisterUser(client *mongo.Client) gin.HandlerFunc {
 			return
 		}
 
-		// 2. Validate input
+		// 2. Set default role before validation (users cannot self-assign ADMIN)
+		user.Role = models.RoleUser
+
+		// 3. Validate input
 		validate := validator.New()
 		if err := validate.Struct(user); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Validation failed", "details": err.Error()})
@@ -74,7 +77,7 @@ func RegisterUser(client *mongo.Client) gin.HandlerFunc {
 		user.CreatedAt = time.Now()
 		user.UpdatedAt = time.Now()
 		user.Password = hashedPassword // Replace plain password with hash
-		user.Role = models.RoleUser    // Default role
+		// Note: Role already set to USER before validation (prevents self-assignment to ADMIN)
 
 		// 6. Insert user into database (no plain-text tokens stored)
 		_, err = userCollection.InsertOne(ctx, user)
